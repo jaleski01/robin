@@ -80,11 +80,15 @@ class ThePageRunsThePipeline(unittest.TestCase):
         provider = SOURCE.index('with st.sidebar.expander("LLM Provider"')
         no_models = SOURCE.index("if not model_options:")
         self.assertLess(provider, no_models)
+        self.assertIn('st.session_state["vercel_provider"] = "Google Gemini"',
+                      SOURCE[:provider])
         section = SOURCE[provider:SOURCE.index("\nelse:", provider)]
         self.assertIn('st.selectbox("Provider"', section)
         self.assertIn('type="password"', section)
         self.assertIn('key=f"vercel_api_key_{_provider_field}"', section)
         self.assertIn("_provider_overrides[_provider_field]", section)
+        self.assertIn('getattr(_env_cfg, _provider_field)', section)
+        self.assertIn('st.caption("The selected provider key is configured on the server.")', section)
         self.assertNotIn('key="custom_api_url"', section)
 
     def test_vercel_does_not_load_or_save_persistent_investigations(self):

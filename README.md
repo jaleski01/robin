@@ -133,12 +133,12 @@ docker run --rm \
 ### Vercel
 
 Import the GitHub repository into Vercel. Vercel detects `Dockerfile.vercel` and
-uses the checked-in port setting, so deployment does not require project
-environment variables.
+uses the checked-in port setting. To use Gemini without entering a key on every
+session, create `GOOGLE_API_KEY` in Project Settings → Environment Variables
+and select Production. Enter your Google AI Studio key there. Robin selects
+Google Gemini by default and reads the key on the server; it is not shown in the
+page. A key entered in the sidebar remains a temporary session-only override.
 
-To run investigations, choose a provider and enter its API key in **LLM Provider**
-in the sidebar. Robin keeps the key in the active session; it is not stored as a
-Vercel environment variable.
 Investigation reports remain available in the current session and can be
 downloaded, but are not saved between sessions because Vercel containers do not
 provide persistent local storage.
@@ -146,7 +146,7 @@ provide persistent local storage.
 ### Keep a fork in sync
 
 The `Sync upstream` GitHub Actions workflow checks the original repository every
-six hours and can also be started manually. When it finds changes, it merges them
+15 minutes and can also be started manually. When it finds changes, it merges them
 into the fork's default branch, runs the test suite and builds `Dockerfile.vercel`
 before pushing. A merge conflict, failed test, failed lint, or failed container
 build stops the workflow without updating the branch, so Vercel does not deploy

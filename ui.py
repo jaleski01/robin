@@ -152,7 +152,7 @@ _vercel_provider_fields = {
 
 if _is_vercel_deployment:
     if "vercel_provider" not in st.session_state:
-        st.session_state["vercel_provider"] = "OpenRouter"
+        st.session_state["vercel_provider"] = "Google Gemini"
 
     with st.sidebar.expander("LLM Provider", expanded=True):
         st.selectbox("Provider", list(_vercel_provider_fields), key="vercel_provider")
@@ -162,7 +162,12 @@ if _is_vercel_deployment:
             type="password",
             key=f"vercel_api_key_{_provider_field}",
         )
-        st.caption("The key stays in this Robin session and is sent to the selected provider.")
+        if _env_is_set(getattr(_env_cfg, _provider_field)):
+            st.caption("The selected provider key is configured on the server.")
+        else:
+            st.caption(
+                "A key entered here stays in this Robin session and is sent to the selected provider."
+            )
 
     _provider_overrides = {
         field: getattr(_env_cfg, field) for field in _vercel_provider_fields.values()
@@ -465,7 +470,7 @@ else:
 
 _, logo_col, _ = st.columns(3)
 with logo_col:
-    st.image(".github/assets/robin_logo.png", width=200)
+    st.image("assets/robin_logo.png", width=200)
 
 with st.form("search_form", clear_on_submit=True):
     col_input, col_button = st.columns([10, 1])
