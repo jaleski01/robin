@@ -150,7 +150,8 @@ six hours and can also be started manually. When it finds changes, it merges the
 into the fork's default branch, runs the test suite and builds `Dockerfile.vercel`
 before pushing. A merge conflict, failed test, failed lint, or failed container
 build stops the workflow without updating the branch, so Vercel does not deploy
-that update. The generated merge commit is attributed to `github-actions[bot]`.
+that update. The generated merge commit is authored by `Jaleski 01`; its
+committer records `github-actions[bot]` as the automation that created it.
 
 Enable GitHub Actions in the fork and connect that fork's default branch to the
 Vercel project for production deployments. Vercel deploys pushes to the connected
