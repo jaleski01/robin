@@ -1,0 +1,76 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-${{ github.event.repository.default_branch }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository != 'apurvsinghgautam/robin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream changes
+        id: sync
+        env:
+          TARGET_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git remote add upstream https://github.com/apurvsinghgautam/robin.git
+          git fetch origin "$TARGET_BRANCH"
+          git fetch upstream main
+          git checkout --force -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            echo "The fork is already up to date with upstream."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit upstream/main
+          echo "updated=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v7
+        if: steps.sync.outputs.updated == 'true'
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        if: steps.sync.outputs.updated == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyflakes
+
+      - name: Compile and lint
+        if: steps.sync.outputs.updated == 'true'
+        run: |
+          python -m compileall -q .
+          python -m pyflakes *.py tests/*.py
+
+      - name: Run the test suite
+        if: steps.sync.outputs.updated == 'true'
+        run: python -m unittest discover -s tests -t .
+
+      - name: Build the Vercel container
+        if: steps.sync.outputs.updated == 'true'
+        run: docker build --file Dockerfile.vercel --tag robin-vercel:upstream .
+
+      - name: Push the tested merge to the default branch
+        if: steps.sync.outputs.updated == 'true'
+        env:
+          TARGET_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git push origin "HEAD:refs/heads/$TARGET_BRANCH"

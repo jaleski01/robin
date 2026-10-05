@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   create-release:
+    # A fork must not publish releases or Docker images under the upstream owner's identity.
+    if: github.repository == 'apurvsinghgautam/robin'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.new_version }}

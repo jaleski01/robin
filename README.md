@@ -143,6 +143,20 @@ Investigation reports remain available in the current session and can be
 downloaded, but are not saved between sessions because Vercel containers do not
 provide persistent local storage.
 
+### Keep a fork in sync
+
+The `Sync upstream` GitHub Actions workflow checks the original repository every
+six hours and can also be started manually. When it finds changes, it merges them
+into the fork's default branch, runs the test suite and builds `Dockerfile.vercel`
+before pushing. A merge conflict, failed test, failed lint, or failed container
+build stops the workflow without updating the branch, so Vercel does not deploy
+that update. The generated merge commit is attributed to `github-actions[bot]`.
+
+Enable GitHub Actions in the fork and connect that fork's default branch to the
+Vercel project for production deployments. Vercel deploys pushes to the connected
+production branch automatically. No GitHub or Vercel secrets are needed for the
+sync workflow.
+
 ---
 
 ## Robin as MCP
