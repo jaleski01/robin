@@ -22,7 +22,7 @@ from pipeline import PipelineError, followup_model, run_investigation
 from prompts import PRESETS, PRESET_PROMPTS
 from store import load_investigations
 from langchain_core.messages import HumanMessage, AIMessage
-from config import DEPTH_LIMITS, RobinConfig
+from config import DEPTH_LIMITS, RobinConfig, is_vercel_deployment
 from health import check_llm_health, check_search_engines, check_tor_proxy
 
 
@@ -141,24 +141,77 @@ def _env_is_set(value) -> bool:
 # Seed session state from .env on first run. This must happen before
 # get_model_choices.
 _env_cfg = RobinConfig.from_env()
-if "custom_api_url" not in st.session_state:
-    st.session_state["custom_api_url"] = _env_cfg.custom_api_base_url or ""
-if "custom_api_key" not in st.session_state:
-    st.session_state["custom_api_key"] = _env_cfg.custom_api_key or ""
-if "custom_api_model" not in st.session_state:
-    st.session_state["custom_api_model"] = _env_cfg.custom_api_model or ""
+_is_vercel_deployment = is_vercel_deployment()
+_vercel_provider_fields = {
+    "OpenAI": "openai_api_key",
+    "Anthropic": "anthropic_api_key",
+    "Google Gemini": "google_api_key",
+    "Mistral": "mistral_api_key",
+    "OpenRouter": "openrouter_api_key",
+}
 
-# The config for this rerun is the environment, with whatever the user typed
-# into the Custom API Provider box layered on top.
-_robin_cfg = replace(
-    _env_cfg,
-    custom_api_base_url=st.session_state["custom_api_url"].strip() or None,
-    custom_api_key=st.session_state["custom_api_key"].strip() or None,
-    custom_api_model=st.session_state["custom_api_model"].strip() or None,
-)
+if _is_vercel_deployment:
+    if "vercel_provider" not in st.session_state:
+        st.session_state["vercel_provider"] = "OpenRouter"
+
+    with st.sidebar.expander("LLM Provider", expanded=True):
+        st.selectbox("Provider", list(_vercel_provider_fields), key="vercel_provider")
+        _provider_field = _vercel_provider_fields[st.session_state["vercel_provider"]]
+        _provider_key = st.text_input(
+            "API Key",
+            type="password",
+            key=f"vercel_api_key_{_provider_field}",
+        )
+        st.caption("The key stays in this Robin session and is sent to the selected provider.")
+
+    _provider_overrides = {
+        field: getattr(_env_cfg, field) for field in _vercel_provider_fields.values()
+    }
+    _provider_overrides[_provider_field] = _provider_key.strip() or getattr(
+        _env_cfg, _provider_field
+    )
+    _robin_cfg = replace(_env_cfg, **_provider_overrides)
+else:
+    if "custom_api_url" not in st.session_state:
+        st.session_state["custom_api_url"] = _env_cfg.custom_api_base_url or ""
+    if "custom_api_key" not in st.session_state:
+        st.session_state["custom_api_key"] = _env_cfg.custom_api_key or ""
+    if "custom_api_model" not in st.session_state:
+        st.session_state["custom_api_model"] = _env_cfg.custom_api_model or ""
+
+    # The config for this rerun is the environment, with the custom provider
+    # values the user entered layered on top.
+    _robin_cfg = replace(
+        _env_cfg,
+        custom_api_base_url=st.session_state["custom_api_url"].strip() or None,
+        custom_api_key=st.session_state["custom_api_key"].strip() or None,
+        custom_api_model=st.session_state["custom_api_model"].strip() or None,
+    )
 
 model_options = get_model_choices(_robin_cfg)
 model_display_names = get_model_display_names(model_options, _robin_cfg)
+
+if not _is_vercel_deployment:
+    with st.sidebar.expander("🔌 Custom API Provider", expanded=not bool(model_options)):
+        st.caption("Values entered here are kept only in the current Robin session.")
+        st.text_input(
+            "Base URL",
+            key="custom_api_url",
+            placeholder="https://api.groq.com/openai/v1",
+            help="Base URL for any OpenAI-compatible API (Groq, Mistral, LM Studio, etc.)",
+        )
+        st.text_input(
+            "API Key",
+            key="custom_api_key",
+            type="password",
+            help="API key for the custom provider (leave blank if not required)",
+        )
+        st.text_input(
+            "Model Name",
+            key="custom_api_model",
+            placeholder="llama-3.3-70b-versatile",
+            help="Model to use. Required if the provider doesn't expose /v1/models for auto-discovery.",
+        )
 
 # Preselect the newest inexpensive model. The rule lives in llm_utils because
 # robin_investigate needs the same answer when nobody names a model.
@@ -190,11 +243,17 @@ if not model_options:
             "your API key in it (see `.env.example`), and start Robin again.\n\n"
             "See TROUBLESHOOTING.md."
         )
+    elif _is_vercel_deployment:
+        st.error(
+            "⛔ **No LLM models available.**\n\n"
+            "Choose a provider and enter its API key in the **LLM Provider** "
+            "section in the sidebar. The key is kept only for this Robin session."
+        )
     else:
         st.error(
             "⛔ **No LLM models available.**\n\n"
-            "No API keys or local providers are configured. "
-            "Set at least one in your `.env` file and restart Robin.\n\n"
+            "No API keys or local providers are configured. Add a provider key "
+            "to your `.env` file or configure one under Custom API Provider.\n\n"
             "See TROUBLESHOOTING.md."
         )
     st.stop()
@@ -209,25 +268,6 @@ model = st.sidebar.selectbox(
 if any(model_display_names.get(name, "").startswith("[ollama]") for name in model_options):
     st.sidebar.caption("Locally detected Ollama models are automatically added to this list.")
 
-with st.sidebar.expander("🔌 Custom API Provider"):
-    st.text_input(
-        "Base URL",
-        key="custom_api_url",
-        placeholder="https://api.groq.com/openai/v1",
-        help="Base URL for any OpenAI-compatible API (Groq, Mistral, LM Studio, etc.)",
-    )
-    st.text_input(
-        "API Key",
-        key="custom_api_key",
-        type="password",
-        help="API key for the custom provider (leave blank if not required)",
-    )
-    st.text_input(
-        "Model Name",
-        key="custom_api_model",
-        placeholder="llama-3.3-70b-versatile",
-        help="Model to use. Required if the provider doesn't expose /v1/models for auto-discovery.",
-    )
 # Starting values come from ROBIN_DEFAULT_* when set, already clamped into these
 # ranges by config.py; the ranges are the same ones the MCP server advertises.
 threads = st.sidebar.slider(
@@ -367,7 +407,9 @@ if st.sidebar.button("🔍 Check Search Engines", use_container_width=True):
 
 st.sidebar.divider()
 st.sidebar.subheader("📂 Past Investigations")
-saved_investigations = load_investigations()
+saved_investigations = (
+    [] if _is_vercel_deployment else load_investigations()
+)
 if saved_investigations:
     inv_labels = [
         f"{inv['_filename'].replace('investigation_','').replace('.json','')} — {inv['query'][:40]}"
@@ -415,7 +457,10 @@ if saved_investigations:
             st.session_state["pivot_suggestions"] = list(_saved.get("pivots") or [])
             st.rerun()
 else:
-    st.sidebar.caption("No saved investigations yet.")
+    st.sidebar.caption(
+        "Reports are available only in the current session on Vercel."
+        if _is_vercel_deployment else "No saved investigations yet."
+    )
 
 
 _, logo_col, _ = st.columns(3)
@@ -678,6 +723,7 @@ if _do_run:
             search_fn=cached_search_results,
             scrape_fn=cached_scrape_multiple,
             preset_label=selected_preset_label,
+            save=not _is_vercel_deployment,
         )
     except PipelineError as e:
         _tiles.fail()
@@ -757,7 +803,11 @@ if _do_run:
         href = f'<div class="aStyle">📥 <a href="data:file/markdown;base64,{b64}" download="{fname}">Download</a></div>'
         st.markdown(href, unsafe_allow_html=True)
 
-    if investigation.saved_as:
+    if _is_vercel_deployment:
+        status_slot.success(
+            "✔️ Pipeline completed. Download this report before leaving the session."
+        )
+    elif investigation.saved_as:
         status_slot.success(
             f"✔️ Pipeline completed successfully! Investigation saved as `{investigation.saved_as}`"
         )

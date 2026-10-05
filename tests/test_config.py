@@ -46,6 +46,12 @@ class CleanEnv(unittest.TestCase):
         self.assertEqual(config._clean_env("NAME", "fallback", env={"NAME": "yourkey123"}),
                          "yourkey123")
 
+    def test_vercel_mode_uses_the_platform_indicator(self):
+        for env, expected in (({}, False), ({"VERCEL": "1"}, True),
+                              ({"VERCEL": "0"}, False), ({"VERCEL": "true"}, False)):
+            with self.subTest(env=env):
+                self.assertEqual(config.is_vercel_deployment(env=env), expected)
+
 
 class FromEnv(unittest.TestCase):
     """Every field of a config built from an explicit environment mapping."""

@@ -86,6 +86,11 @@ def _clean_int(name, default, env=None):
 		return default
 
 
+def is_vercel_deployment(env=None) -> bool:
+	"""Whether Robin is running in a Vercel deployment."""
+	return _clean_env("VERCEL", env=env) == "1"
+
+
 @dataclass(frozen=True)
 class RobinConfig:
 	"""Every setting Robin reads, as one value that can be passed around."""

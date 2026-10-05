@@ -1,0 +1,37 @@
+FROM python:3.11-slim
+
+RUN DEBIAN_FRONTEND="noninteractive" apt-get update && \
+    apt-get install -y --no-install-recommends \
+      tor \
+      build-essential \
+      curl \
+      libssl-dev \
+      libffi-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid 1000 robin && \
+    useradd --uid 1000 --gid 1000 --create-home --home-dir /home/robin robin
+
+ENV HOME=/home/robin
+ENV PORT=8501
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+COPY --chown=robin:robin . .
+
+RUN chmod +x /app/entrypoint.sh && \
+    install -d -m 0700 -o robin -g robin /home/robin/.tor && \
+    install -d -m 0700 -o robin -g robin /home/robin/.robin && \
+    install -d -m 0755 -o robin -g robin /app/investigations && \
+    chown robin:robin /app
+
+EXPOSE 8501
+
+USER robin
+
+ENTRYPOINT ["/app/entrypoint.sh"]

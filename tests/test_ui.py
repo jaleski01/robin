@@ -73,8 +73,24 @@ class ThePageRunsThePipeline(unittest.TestCase):
         start = SOURCE.index("if not model_options:")
         block = SOURCE[start:SOURCE.index("st.stop()", start)]
         self.assertNotIn("st.sidebar.", block)
-        self.assertEqual(block.count("st.error("), 3)
+        self.assertEqual(block.count("st.error("), 4)
         self.assertIn('with_name(".env").is_dir()', block)
+
+    def test_a_provider_can_be_configured_without_environment_variables(self):
+        provider = SOURCE.index('with st.sidebar.expander("LLM Provider"')
+        no_models = SOURCE.index("if not model_options:")
+        self.assertLess(provider, no_models)
+        section = SOURCE[provider:SOURCE.index("\nelse:", provider)]
+        self.assertIn('st.selectbox("Provider"', section)
+        self.assertIn('type="password"', section)
+        self.assertIn('key=f"vercel_api_key_{_provider_field}"', section)
+        self.assertIn("_provider_overrides[_provider_field]", section)
+        self.assertNotIn('key="custom_api_url"', section)
+
+    def test_vercel_does_not_load_or_save_persistent_investigations(self):
+        self.assertIn("[] if _is_vercel_deployment else load_investigations()", SOURCE)
+        self.assertIn("save=not _is_vercel_deployment", SOURCE)
+        self.assertIn("Download this report before leaving the session", SOURCE)
 
 
 class PipelineErrorGuidance(unittest.TestCase):

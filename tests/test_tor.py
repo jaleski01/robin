@@ -178,7 +178,11 @@ class TorReadiness(unittest.TestCase):
         done = self.log("[notice] Bootstrapped 100% (done): Done\n")
         port = sock.getsockname()[1]
         self.assertFalse(mcp_server.probe_tor(port=port, bootstrap_log=half))
+        connection, _ = sock.accept()
+        connection.close()
         self.assertTrue(mcp_server.probe_tor(port=port, bootstrap_log=done))
+        connection, _ = sock.accept()
+        connection.close()
         self.assertFalse(mcp_server.probe_tor(port=1, bootstrap_log=done))
         for log, status in ((half, "starting"), (done, "up")):
             with mock.patch.object(health.socket, "create_connection",

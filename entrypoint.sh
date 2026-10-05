@@ -62,6 +62,21 @@ if [ "$MODE" = "mcp" ]; then
   exec python3 -m mcp_server "$@"
 fi
 
+# A Vercel container must open its HTTP port before Tor finishes bootstrapping.
+# Both background services are ephemeral and restart with their container.
+if [ "${VERCEL:-}" = "1" ]; then
+  echo "Starting Tor in the background..." >&2
+  tor_with_log >&2 &
+
+  (
+    python3 -c "import model_registry; model_registry.refresh(verbose=True)" >&2 ||
+      echo "Model refresh skipped; using bundled model list." >&2
+  ) &
+
+  echo "Starting Robin: AI-Powered Dark Web OSINT Tool..." >&2
+  exec streamlit run ui.py --server.port="${PORT:-8501}" --server.address=0.0.0.0
+fi
+
 echo "Starting Tor..."
 tor_with_log &
 

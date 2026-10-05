@@ -75,6 +75,36 @@ class TheImage(unittest.TestCase):
                 self.assertIn("install -d -m %s -o robin -g robin %s " % (mode, directory),
                               after_copy)
 
+    def test_the_vercel_image_matches_the_local_runtime_and_has_a_fixed_port(self):
+        local = read("Dockerfile")
+        vercel = read("Dockerfile.vercel")
+        for required in (
+                "FROM python:3.11-slim", "apt-get install -y --no-install-recommends",
+                "COPY requirements.txt .", "pip install -r requirements.txt",
+                "COPY --chown=robin:robin . .", "USER robin",
+                'ENTRYPOINT ["/app/entrypoint.sh"]'):
+            with self.subTest(required=required):
+                self.assertIn(required, vercel)
+        self.assertIn("ENV PORT=8501", vercel)
+        self.assertIn("EXPOSE 8501", vercel)
+        self.assertIn("FROM python:3.11-slim", local)
+
+    def test_vercel_uses_a_fast_ui_startup_and_routes_to_the_streamlit_port(self):
+        entrypoint = read("entrypoint.sh")
+        vercel_branch = entrypoint.split('if [ "${VERCEL:-}" = "1" ]; then', 1)[1]
+        vercel_branch = vercel_branch.split("\nfi", 1)[0]
+        self.assertIn("tor_with_log >&2 &", vercel_branch)
+        self.assertIn('streamlit run ui.py --server.port="${PORT:-8501}"', vercel_branch)
+        self.assertNotIn("wait_for_bootstrap", vercel_branch)
+        self.assertLess(entrypoint.index('if [ "${VERCEL:-}" = "1" ]; then'),
+                        entrypoint.index('echo "Waiting for Tor to be ready'))
+        self.assertEqual(read("vercel.json").count('"PORT": "8501"'), 1)
+
+    def test_streamlit_usage_statistics_are_disabled(self):
+        settings = read(".streamlit/config.toml")
+        self.assertIn("[browser]", settings)
+        self.assertIn("gatherUsageStats = false", settings)
+
 
 class McpModeWritesNothingToStdout(unittest.TestCase):
     """In mcp mode stdout is the JSON-RPC transport."""

@@ -130,6 +130,19 @@ docker run --rm \
 
 - Open your browser and navigate to `http://localhost:8501`
 
+### Vercel
+
+Import the GitHub repository into Vercel. Vercel detects `Dockerfile.vercel` and
+uses the checked-in port setting, so deployment does not require project
+environment variables.
+
+To run investigations, choose a provider and enter its API key in **LLM Provider**
+in the sidebar. Robin keeps the key in the active session; it is not stored as a
+Vercel environment variable.
+Investigation reports remain available in the current session and can be
+downloaded, but are not saved between sessions because Vercel containers do not
+provide persistent local storage.
+
 ---
 
 ## Robin as MCP
