@@ -4,6 +4,8 @@ ui.py runs Streamlit the moment it is imported, so these tests parse it, and
 execute the few pieces with logic of their own against stand-ins for `st`.
 """
 import ast
+import base64
+import hashlib
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
@@ -99,20 +101,42 @@ class ThePageRunsThePipeline(unittest.TestCase):
 
 
 class ThePageLogo(unittest.TestCase):
-    def test_logo_and_favicon_assets_are_repo_relative_and_small(self):
-        ui_path = Path(__file__).resolve().parents[1] / "ui.py"
-        ui = load_from_ui({"ROBIN_ASSETS_PATH", "ROBIN_LOGO_PATH", "ROBIN_FAVICON_PATH"}, {
+    def branding(self):
+        return load_from_ui({"ROBIN_STATIC_PATH", "ROBIN_LOGO_PATH", "ROBIN_FAVICON_PATH",
+                             "ROBIN_FAVICON_URI", "ROBIN_LOGO_URL"}, {
             "Path": Path,
-            "__file__": str(ui_path),
+            "base64": base64,
+            "hashlib": hashlib,
+            "__file__": str(Path(__file__).resolve().parents[1] / "ui.py"),
         })
+
+    def test_logo_and_favicon_assets_are_repo_relative_and_small(self):
+        ui = self.branding()
         logo_path = ui["ROBIN_LOGO_PATH"]
         favicon_path = ui["ROBIN_FAVICON_PATH"]
         self.assertTrue(logo_path.is_file())
         self.assertLessEqual(logo_path.stat().st_size, 1024 * 1024)
         self.assertTrue(favicon_path.is_file())
         self.assertLessEqual(favicon_path.stat().st_size, 256 * 1024)
-        self.assertIn("st.image(ROBIN_LOGO_PATH, width=200)", SOURCE)
-        self.assertIn("page_icon=ROBIN_FAVICON_PATH", SOURCE)
+        self.assertIn("st.image(ROBIN_LOGO_URL, width=200)", SOURCE)
+        self.assertIn("page_icon=ROBIN_FAVICON_URI", SOURCE)
+
+    def test_favicon_contains_the_png_without_a_session_media_request(self):
+        from streamlit.commands.page_config import _get_favicon_string
+
+        ui = self.branding()
+        uri = ui["ROBIN_FAVICON_URI"]
+        prefix, encoded = uri.split(",", 1)
+        self.assertEqual(prefix, "data:image/png;base64")
+        self.assertEqual(base64.b64decode(encoded, validate=True),
+                         ui["ROBIN_FAVICON_PATH"].read_bytes())
+        # No running Streamlit instance is needed to format an inline icon.
+        self.assertEqual(_get_favicon_string(uri), uri)
+
+    def test_logo_is_a_static_url_versioned_by_its_contents(self):
+        ui = self.branding()
+        version = hashlib.sha256(ui["ROBIN_LOGO_PATH"].read_bytes()).hexdigest()[:16]
+        self.assertEqual(ui["ROBIN_LOGO_URL"], "/app/static/robin_logo.png?v=" + version)
 
 
 class PipelineErrorGuidance(unittest.TestCase):

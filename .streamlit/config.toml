@@ -3,6 +3,7 @@ gatherUsageStats = false
 
 [server]
 runOnSave = true
+enableStaticServing = true
 
 [theme]
 base="dark"

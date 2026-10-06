@@ -143,6 +143,12 @@ Investigation reports remain available in the current session and can be
 downloaded, but are not saved between sessions because Vercel containers do not
 provide persistent local storage.
 
+Branding images ship in `static/` and are served independently of Streamlit's
+session media registry. The session favicon embeds the PNG directly;
+`vercel.json` routes the browser's initial `/favicon.png` and `/favicon.ico`
+requests to the same static icon. The logo's URL includes a content version so
+updated images do not reuse an older cached asset.
+
 ### Keep a fork in sync
 
 The `Sync upstream` GitHub Actions workflow checks the original repository every

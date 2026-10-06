@@ -2,6 +2,7 @@
 import ast
 import json
 import re
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -45,13 +46,13 @@ def ui_assets():
         for target in node.targets if isinstance(target, ast.Name)
     }
     expected_assignments = {
-        "ROBIN_ASSETS_PATH": "Path(__file__).resolve().parent / 'assets'",
-        "ROBIN_LOGO_PATH": "ROBIN_ASSETS_PATH / 'robin_logo.png'",
-        "ROBIN_FAVICON_PATH": "ROBIN_ASSETS_PATH / 'robin_favicon.png'",
+        "ROBIN_STATIC_PATH": "Path(__file__).resolve().parent / 'static'",
+        "ROBIN_LOGO_PATH": "ROBIN_STATIC_PATH / 'robin_logo.png'",
+        "ROBIN_FAVICON_PATH": "ROBIN_STATIC_PATH / 'robin_favicon.png'",
     }
     asset_paths = {
-        "ROBIN_LOGO_PATH": "assets/robin_logo.png",
-        "ROBIN_FAVICON_PATH": "assets/robin_favicon.png",
+        "ROBIN_LOGO_PATH": "static/robin_logo.png",
+        "ROBIN_FAVICON_PATH": "static/robin_favicon.png",
     }
     assets = {name for name, expression in expected_assignments.items()
               if name in assignments and ast.unparse(assignments[name]) == expression}
@@ -64,14 +65,15 @@ def ui_assets():
             asset = node.args[0]
             if isinstance(asset, ast.Constant) and isinstance(asset.value, str):
                 paths.append(asset.value)
-            elif isinstance(asset, ast.Name) and asset.id in assets & asset_paths.keys():
-                paths.append(asset_paths[asset.id])
+            elif (isinstance(asset, ast.Name) and asset.id == "ROBIN_LOGO_URL"
+                  and "ROBIN_LOGO_PATH" in assets):
+                paths.append(asset_paths["ROBIN_LOGO_PATH"])
         if (isinstance(node.func, ast.Attribute) and node.func.attr == "set_page_config"
                 and getattr(node.func.value, "id", "") == "st"):
-            paths.extend(asset_paths[keyword.value.id]
+            paths.extend(asset_paths["ROBIN_FAVICON_PATH"]
                          for keyword in node.keywords
                          if keyword.arg == "page_icon" and isinstance(keyword.value, ast.Name)
-                         and keyword.value.id in asset_paths
+                         and keyword.value.id == "ROBIN_FAVICON_URI"
                          and "ROBIN_FAVICON_PATH" in assets)
     return paths
 
@@ -95,6 +97,20 @@ class TheImage(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue((ROOT / path).is_file(), path)
                 self.assertFalse(excluded_by_dockerignore(path))
+
+    def test_browser_favicon_aliases_use_a_packaged_static_icon(self):
+        streamlit = tomllib.loads(read(".streamlit/config.toml"))
+        self.assertTrue(streamlit["server"]["enableStaticServing"])
+        vercel = json.loads(read("vercel.json"))
+        rewrites = {rule["source"]: rule["destination"] for rule in vercel["rewrites"]}
+        for alias in ("/favicon.png", "/favicon.ico"):
+            self.assertEqual(rewrites[alias], "/app/static/robin_favicon.png")
+        self.assertTrue((ROOT / "static/robin_favicon.png").is_file())
+        cache_headers = [header["value"] for rule in vercel["headers"]
+                         for header in rule["headers"] if header["key"] == "Cache-Control"]
+        self.assertTrue(cache_headers)
+        self.assertTrue(all("max-age=0" in header and "must-revalidate" in header
+                            for header in cache_headers))
 
     def test_the_dockerfile_labels_the_server_and_pre_creates_robin_owned_directories(self):
         dockerfile = read("Dockerfile")

@@ -2,5 +2,17 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "env": {
     "PORT": "8501"
-  }
+  },
+  "rewrites": [
+    { "source": "/favicon.png", "destination": "/app/static/robin_favicon.png" },
+    { "source": "/favicon.ico", "destination": "/app/static/robin_favicon.png" }
+  ],
+  "headers": [
+    {
+      "source": "/favicon.:extension(png|ico)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    }
+  ]
 }

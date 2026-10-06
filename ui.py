@@ -1,11 +1,31 @@
 
 import base64
+import hashlib
+from pathlib import Path
 import streamlit as st
+
+ROBIN_STATIC_PATH = Path(__file__).resolve().parent / "static"
+ROBIN_LOGO_PATH = ROBIN_STATIC_PATH / "robin_logo.png"
+ROBIN_FAVICON_PATH = ROBIN_STATIC_PATH / "robin_favicon.png"
+# Inline the favicon so another Vercel instance never needs a session's media registry.
+ROBIN_FAVICON_URI = "data:image/png;base64," + base64.b64encode(
+    ROBIN_FAVICON_PATH.read_bytes()
+).decode("ascii")
+ROBIN_LOGO_URL = "/app/static/robin_logo.png?v=" + hashlib.sha256(
+    ROBIN_LOGO_PATH.read_bytes()
+).hexdigest()[:16]
+
+# Send page branding before importing provider SDKs, which can delay cold starts.
+st.set_page_config(
+    page_title="Robin: AI-Powered Dark Web OSINT Tool",
+    page_icon=ROBIN_FAVICON_URI,
+    initial_sidebar_state="expanded",
+)
+
 import model_registry
 from contextlib import ExitStack
 from dataclasses import replace
 from datetime import datetime
-from pathlib import Path
 from scrape import scrape_multiple
 from search import engines_unreachable, get_search_results_detailed
 from llm_utils import (
@@ -105,16 +125,6 @@ def cached_scrape_multiple(filtered: list, threads: int, content_chars: int):
     return scrape_multiple(filtered, max_workers=threads,
                            max_return_chars=content_chars)
 
-
-ROBIN_ASSETS_PATH = Path(__file__).resolve().parent / "assets"
-ROBIN_LOGO_PATH = ROBIN_ASSETS_PATH / "robin_logo.png"
-ROBIN_FAVICON_PATH = ROBIN_ASSETS_PATH / "robin_favicon.png"
-
-st.set_page_config(
-    page_title="Robin: AI-Powered Dark Web OSINT Tool",
-    page_icon=ROBIN_FAVICON_PATH,
-    initial_sidebar_state="expanded",
-)
 
 st.markdown(
     """
@@ -474,7 +484,7 @@ else:
 
 _, logo_col, _ = st.columns(3)
 with logo_col:
-    st.image(ROBIN_LOGO_PATH, width=200)
+    st.image(ROBIN_LOGO_URL, width=200)
 
 with st.form("search_form", clear_on_submit=True):
     col_input, col_button = st.columns([10, 1])
