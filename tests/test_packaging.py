@@ -37,11 +37,43 @@ def excluded_by_dockerignore(path):
 
 
 def ui_assets():
-    """Every literal path ui.py hands to st.image or st.logo."""
-    return [node.args[0].value for node in ast.walk(ast.parse(read("ui.py")))
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-            and node.func.attr in ("image", "logo") and getattr(node.func.value, "id", "") == "st"
-            and node.args and isinstance(node.args[0], ast.Constant)]
+    """Every packaged image path ui.py hands to Streamlit's image controls."""
+    tree = ast.parse(read("ui.py"))
+    assignments = {
+        target.id: node.value
+        for node in tree.body if isinstance(node, ast.Assign)
+        for target in node.targets if isinstance(target, ast.Name)
+    }
+    expected_assignments = {
+        "ROBIN_ASSETS_PATH": "Path(__file__).resolve().parent / 'assets'",
+        "ROBIN_LOGO_PATH": "ROBIN_ASSETS_PATH / 'robin_logo.png'",
+        "ROBIN_FAVICON_PATH": "ROBIN_ASSETS_PATH / 'robin_favicon.png'",
+    }
+    asset_paths = {
+        "ROBIN_LOGO_PATH": "assets/robin_logo.png",
+        "ROBIN_FAVICON_PATH": "assets/robin_favicon.png",
+    }
+    assets = {name for name, expression in expected_assignments.items()
+              if name in assignments and ast.unparse(assignments[name]) == expression}
+    paths = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if (isinstance(node.func, ast.Attribute) and node.func.attr in ("image", "logo")
+                and getattr(node.func.value, "id", "") == "st" and node.args):
+            asset = node.args[0]
+            if isinstance(asset, ast.Constant) and isinstance(asset.value, str):
+                paths.append(asset.value)
+            elif isinstance(asset, ast.Name) and asset.id in assets & asset_paths.keys():
+                paths.append(asset_paths[asset.id])
+        if (isinstance(node.func, ast.Attribute) and node.func.attr == "set_page_config"
+                and getattr(node.func.value, "id", "") == "st"):
+            paths.extend(asset_paths[keyword.value.id]
+                         for keyword in node.keywords
+                         if keyword.arg == "page_icon" and isinstance(keyword.value, ast.Name)
+                         and keyword.value.id in asset_paths
+                         and "ROBIN_FAVICON_PATH" in assets)
+    return paths
 
 
 def mcp_mode():

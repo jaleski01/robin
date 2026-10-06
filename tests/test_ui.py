@@ -6,6 +6,7 @@ execute the few pieces with logic of their own against stand-ins for `st`.
 import ast
 import unittest
 from contextlib import ExitStack
+from pathlib import Path
 from types import SimpleNamespace
 
 import pipeline
@@ -95,6 +96,23 @@ class ThePageRunsThePipeline(unittest.TestCase):
         self.assertIn("[] if _is_vercel_deployment else load_investigations()", SOURCE)
         self.assertIn("save=not _is_vercel_deployment", SOURCE)
         self.assertIn("Download this report before leaving the session", SOURCE)
+
+
+class ThePageLogo(unittest.TestCase):
+    def test_logo_and_favicon_assets_are_repo_relative_and_small(self):
+        ui_path = Path(__file__).resolve().parents[1] / "ui.py"
+        ui = load_from_ui({"ROBIN_ASSETS_PATH", "ROBIN_LOGO_PATH", "ROBIN_FAVICON_PATH"}, {
+            "Path": Path,
+            "__file__": str(ui_path),
+        })
+        logo_path = ui["ROBIN_LOGO_PATH"]
+        favicon_path = ui["ROBIN_FAVICON_PATH"]
+        self.assertTrue(logo_path.is_file())
+        self.assertLessEqual(logo_path.stat().st_size, 1024 * 1024)
+        self.assertTrue(favicon_path.is_file())
+        self.assertLessEqual(favicon_path.stat().st_size, 256 * 1024)
+        self.assertIn("st.image(ROBIN_LOGO_PATH, width=200)", SOURCE)
+        self.assertIn("page_icon=ROBIN_FAVICON_PATH", SOURCE)
 
 
 class PipelineErrorGuidance(unittest.TestCase):

@@ -106,9 +106,13 @@ def cached_scrape_multiple(filtered: list, threads: int, content_chars: int):
                            max_return_chars=content_chars)
 
 
+ROBIN_ASSETS_PATH = Path(__file__).resolve().parent / "assets"
+ROBIN_LOGO_PATH = ROBIN_ASSETS_PATH / "robin_logo.png"
+ROBIN_FAVICON_PATH = ROBIN_ASSETS_PATH / "robin_favicon.png"
+
 st.set_page_config(
     page_title="Robin: AI-Powered Dark Web OSINT Tool",
-    page_icon="🕵️‍♂️",
+    page_icon=ROBIN_FAVICON_PATH,
     initial_sidebar_state="expanded",
 )
 
@@ -470,7 +474,7 @@ else:
 
 _, logo_col, _ = st.columns(3)
 with logo_col:
-    st.image("assets/robin_logo.png", width=200)
+    st.image(ROBIN_LOGO_PATH, width=200)
 
 with st.form("search_form", clear_on_submit=True):
     col_input, col_button = st.columns([10, 1])
